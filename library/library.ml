@@ -286,16 +286,39 @@ let locate_absolute_library dir =
     try
       let name = Id.to_string base ^ ext in
       let _, file = System.where_in_path ~warn:false loadpath name in
-      [file]
-    with Not_found -> [] in
-  match find ".vo" @ find ".vio" with
-  | [] -> raise LibNotFound
-  | [file] -> file
-  | [vo;vi] when Unix.((stat vo).st_mtime < (stat vi).st_mtime) ->
-    warn_several_object_files (vi, vo);
-    vi
-  | [vo;vi] -> vo
-  | _ -> assert false
+      Some file
+    with Not_found -> None in
+
+  if !Flags.load_vos_libraries then begin
+
+    (* If the .vos file exists and is not empty, it describes the library.
+       If the .vos file exists and is empty, then load the .vo file.
+       If the .vos file is missing, then fail. *)
+    match find ".vos", find ".vo" with
+    | None -> raise LibNotFound
+    | Some vos ->
+        if (Unix.stat vos).Unix.st_size > 0 then vos else
+        match find ".vo" with
+        | None -> raise LibNotFound
+        | Some vo -> vo
+
+  end else begin
+
+    (* If one of the .vo or the .vio exists, then load it.
+       If both exists, then load the more recent one,
+       and raise a warning if the .vo is older than the .vio. *)
+    match find ".vo", find ".vio" with
+    | None, None -> raise LibNotFound
+    | Some file, None | None, Some file -> file
+    | Some vo, Some vi ->
+      if Unix.((stat vo).st_mtime < (stat vi).st_mtime) then begin
+        warn_several_object_files (vi, vo);
+        vi
+      end else begin
+        vo
+      end
+
+  end
 
 let locate_qualified_library ?root ?(warn = true) qid =
   (* Search library in loadpath *)
@@ -307,19 +330,37 @@ let locate_qualified_library ?root ?(warn = true) qid =
       let name = Id.to_string base ^ ext in
       let lpath, file =
         System.where_in_path ~warn (List.map fst loadpath) name in
-      [lpath, file]
-    with Not_found -> [] in
+      Some (lpath, file)
+    with Not_found -> None in
+
   let lpath, file =
-    match find ".vo" @ find ".vio" with
-    | [] -> raise LibNotFound
-    | [lpath, file] -> lpath, file
-    | [lpath_vo, vo; lpath_vi, vi]
-      when Unix.((stat vo).st_mtime < (stat vi).st_mtime) ->
-      warn_several_object_files (vi, vo);
-       lpath_vi, vi
-    | [lpath_vo, vo; _ ] -> lpath_vo, vo
-    | _ -> assert false
-  in
+    (* Same logic as in the function locate_absolute_library;
+       todo: one should work a bit harder to try to factorize the code. *)
+
+    if !Flags.load_vos_libraries then begin
+
+      match find ".vos" with
+      | None -> raise LibNotFoundAsVos
+      | Some ((lpath_vos,vos) as res_vos) ->
+          if (Unix.stat vos).Unix.st_size > 0 then res_vos else
+          match find ".vo" with
+          | None -> raise LibNotFound
+          | Some res -> res
+
+    end else begin
+
+      match find ".vo", find ".vio" with
+      | None, None -> raise LibNotFound
+      | Some res, None | None, Some res -> res
+      | Some ((lpath_vo, vo) as res_vo), Some ((lpath_vi, vi) as res_vi) ->
+          if Unix.((stat vo).st_mtime < (stat vi).st_mtime) then begin
+            warn_several_object_files (vi, vo);
+            res_vi
+          end else begin
+            res_vo
+          end
+
+     end in
   let dir = add_dirpath_suffix (String.List.assoc lpath loadpath) base in
   (* Look if loaded *)
   if library_is_loaded dir then (LibLoaded, dir,library_full_filename dir)
@@ -333,8 +374,10 @@ let error_unmapped_dir qid =
      str "no physical path bound to" ++ spc () ++ DirPath.print prefix ++ fnl ())
 
 let error_lib_not_found qid =
+  let bonus =
+    if !Flags.load_vos_libraries then " (searching for a .vos file)" else "" in
   user_err ~hdr:"load_absolute_library_from"
-    (str"Cannot find library " ++ pr_qualid qid ++ str" in loadpath")
+    (str"Cannot find library " ++ pr_qualid qid ++ str" in loadpath" ++ bonus)
 
 let try_locate_absolute_library dir =
   try
@@ -342,6 +385,7 @@ let try_locate_absolute_library dir =
   with
     | LibUnmappedDir -> error_unmapped_dir (qualid_of_dirpath dir)
     | LibNotFound -> error_lib_not_found (qualid_of_dirpath dir)
+
 
 (************************************************************************)
 (** {6 Tables of opaque proof terms} *)
@@ -615,7 +659,7 @@ let check_coq_overwriting p id =
   let l = DirPath.repr p in
   let is_empty = match l with [] -> true | _ -> false in
   if not !Flags.boot && not is_empty && Id.equal (List.last l) coq_root then
-    user_err 
+    user_err
       (str "Cannot build module " ++ DirPath.print p ++ str "." ++ Id.print id ++ str "." ++ spc () ++
       str "it starts with prefix \"Coq\" which is reserved for the Coq library.")
 
@@ -663,7 +707,7 @@ let current_deps () =
 let current_reexports () = !libraries_exports_list
 
 let error_recursively_dependent_library dir =
-  user_err 
+  user_err
     (strbrk "Unable to use logical name " ++ DirPath.print dir ++
      strbrk " to save current library because" ++
      strbrk " it already depends on a library of this name.")
@@ -684,7 +728,8 @@ let save_library_to ?todo dir f otab =
     | None ->
         (* XXX *)
         (* assert(!Flags.compilation_mode = Flags.BuildVo); *)
-        assert(Filename.check_suffix f ".vo");
+        assert(Filename.check_suffix f ".vo"
+            || Filename.check_suffix f ".vos");
         Future.UUIDSet.empty
     | Some (l,_) ->
         assert(Filename.check_suffix f ".vio");

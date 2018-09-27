@@ -53,6 +53,10 @@ let print_usage_channel co command =
 \n                         into fi.vo\
 \n  -schedule-vio-checking j f1..fn   run up to j instances of Coq to check all\
 \n                         proofs in each fi.vio\
+\n  -vos                   process statements but ignore proofs, and produce a .vos file\
+\n  -vok                   process the file by loading .vos instead of .vo files for\
+\n                         dependencies, and produce an empty .vok file on success\
+\n  -also-vos              compile a .vo file, and also produce a corresponding .vos file\
 \n\
 \n  -where                 print Coq's standard library location and exit\
 \n  -config, --config      print Coq's configuration information and exit\

@@ -85,7 +85,7 @@ let parse_args () =
         Envars.set_coqlib ~fail:(fun x -> x);
         Envars.print_config stdout Coq_config.all_src_dirs;
         exit 0
-      
+
     | ("-print-version" | "--print-version") :: _ ->
         Usage.machine_readable_version 0
 
@@ -96,7 +96,7 @@ let parse_args () =
       |"-q"|"-profile"|"-echo" |"-quiet"
       |"-silent"|"-m"|"-beautify"|"-strict-implicit"
       |"-impredicative-set"|"-vm"|"-native-compiler"
-      |"-indices-matter"|"-quick"|"-type-in-type"
+      |"-indices-matter"|"-quick"|"-vos"|"-vok"|"-also-vos"|"-type-in-type"
       |"-async-proofs-always-delegate"|"-async-proofs-never-reopen-branch"
       |"-stm-debug"
       as o) :: rem ->

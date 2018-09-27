@@ -228,7 +228,30 @@ let glob_opt = ref false
 
 let compile_list = ref ([] : (bool * string) list)
 
-type compilation_mode = BuildVo | BuildVio | Vio2Vo
+(** Compilation modes:
+  - BuildVo      : process statements and proofs (standard compilation)
+  - BuildVio     : process statements, delay proofs in futures
+  - Vio2Vo       : load delayed proofs and process them
+  - BuildVos     : process statements, and discard proofs,
+                   and load .vos files for required libraries
+  - BuildVok     : like BuildVo, but load .vos files for required libraries
+  - BuildAlsoVos : like BuildVo, but dump an empty .vos file upon completion.
+
+  When loading the .vos version of a required library, if the file exists but is
+  empty, then we attempt to load the .vo version of that library.
+  This trick is useful to avoid the need for the user to compile .vos version
+  when an up to date .vo version is already available.
+*)
+type compilation_mode = BuildVo | BuildVio | Vio2Vo | BuildVos | BuildVok | BuildAlsoVos
+
+let extension_for_compilation_mode = function
+  | BuildVo -> "vo"
+  | BuildVio -> "vio"
+  | Vio2Vo -> "vo"
+  | BuildVos -> "vos"
+  | BuildVok -> "vok"
+  | BuildAlsoVos -> "vo"
+
 let compilation_mode = ref BuildVo
 let compilation_output_name = ref None
 
@@ -283,12 +306,14 @@ let ensure_bname src tgt =
 let ensure ext src tgt = ensure_bname src tgt; ensure_ext ext tgt
 
 let ensure_v v = ensure ".v" v v
-let ensure_vo v vo = ensure ".vo" v vo
-let ensure_vio v vio = ensure ".vio" v vio
 
 let ensure_exists f =
   if not (Sys.file_exists f) then
     compile_error (hov 0 (str "Can't find file" ++ spc () ++ str f))
+
+let create_empty_file filename =
+  let f = open_out filename in
+  close_out f
 
 (* Compile a vernac file *)
 let compile ~verbosely ~f_in ~f_out =
@@ -301,15 +326,16 @@ let compile ~verbosely ~f_in ~f_out =
                         |> prlist_with_sep pr_comma Names.Id.print)
                     ++ str ".")
   in
+  let extension = extension_for_compilation_mode !compilation_mode in
   match !compilation_mode with
-  | BuildVo ->
+  | BuildVo | BuildAlsoVos | BuildVok ->
       Flags.record_aux_file := true;
       let long_f_dot_v = ensure_v f_in in
       ensure_exists long_f_dot_v;
       let long_f_dot_vo =
         match f_out with
         | None -> long_f_dot_v ^ "o"
-        | Some f -> ensure_vo long_f_dot_v f in
+        | Some f -> ensure extension long_f_dot_v f in
 
       let doc, sid = Stm.(new_doc
           { doc_type = VoDoc long_f_dot_vo;
@@ -328,26 +354,38 @@ let compile ~verbosely ~f_in ~f_out =
       let _doc = Stm.join ~doc in
       let wall_clock2 = Unix.gettimeofday () in
       check_pending_proofs ();
-      Library.save_library_to ldir long_f_dot_vo (Global.opaque_tables ());
+      if !compilation_mode <> BuildVok  (* Don't output proofs in -vok mode *)
+        then Library.save_library_to ldir long_f_dot_vo (Global.opaque_tables ());
       Aux_file.record_in_aux_at "vo_compile_time"
         (Printf.sprintf "%.3f" (wall_clock2 -. wall_clock1));
       Aux_file.stop_aux_file ();
-      Dumpglob.end_dump_glob ()
+      (* Output an additional .vos empty file in -vos mode*)
+      if !compilation_mode = BuildAlsoVos
+        then create_empty_file (long_f_dot_v ^ "os");
+      (* Create an empty .vok empty file in -vok mode *)
+      if !compilation_mode = BuildVok
+        then create_empty_file (long_f_dot_v ^ "ok");
 
-  | BuildVio ->
+      Dumpglob.end_dump_glob ();
+
+  | BuildVio | BuildVos ->
       Flags.record_aux_file := false;
       Dumpglob.noglob ();
 
       let long_f_dot_v = ensure_v f_in in
       ensure_exists long_f_dot_v;
 
-      let long_f_dot_vio =
+      let long_f_dot_ext = (* filename of .vio or .vos file *)
         match f_out with
-        | None -> long_f_dot_v ^ "io"
-        | Some f -> ensure_vio long_f_dot_v f in
+        | None -> long_f_dot_v ^ (
+             match !compilation_mode with
+             | BuildVio -> "io"
+             | BuildVos -> "os"
+             | _ -> assert false)
+        | Some f -> ensure extension long_f_dot_v f in
 
       let doc, sid = Stm.(new_doc
-          { doc_type = VioDoc long_f_dot_vio;
+          { doc_type = VioDoc long_f_dot_ext;
             require_libs = require_libs ()
           }) in
 
@@ -357,7 +395,8 @@ let compile ~verbosely ~f_in ~f_out =
       let doc, _ = Vernac.load_vernac ~verbosely ~check:false ~interactive:false doc (Stm.get_current_state ~doc) long_f_dot_v in
       let doc = Stm.finish ~doc in
       check_pending_proofs ();
-      let _doc = Stm.snapshot_vio ~doc ldir long_f_dot_vio in
+      let dump_todo = (!compilation_mode = BuildVio) in
+      let _doc = Stm.snapshot_vio ~dump_todo ~doc ldir long_f_dot_ext in
       Stm.reset_task_queue ()
 
   | Vio2Vo ->
@@ -737,6 +776,9 @@ let parse_args arglist =
     |"-quick" -> compilation_mode := BuildVio
     |"-list-tags" -> print_tags := true
     |"-time" -> Flags.time := true
+    |"-vos" -> compilation_mode := BuildVos; Flags.load_vos_libraries := true
+    |"-vok" -> compilation_mode := BuildVok; Flags.load_vos_libraries := true
+    |"-also-vos" -> compilation_mode := BuildAlsoVos
     |"-type-in-type" -> set_type_in_type ()
     |"-unicode" -> add_require ("Utf8_core", None, Some false)
     |"-v"|"--version" -> Usage.version (exitcode ())

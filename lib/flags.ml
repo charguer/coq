@@ -38,6 +38,8 @@ let test_mode = ref false
 let async_proofs_worker_id = ref "master"
 let async_proofs_is_worker () = !async_proofs_worker_id <> "master"
 
+let load_vos_libraries = ref false
+
 let debug = ref false
 
 let in_debugger = ref false
@@ -111,8 +113,8 @@ let make_universe_polymorphism b = universe_polymorphism := b
 let is_universe_polymorphism () = !universe_polymorphism
 
 let local_polymorphic_flag = ref None
-let use_polymorphic_flag () = 
-  match !local_polymorphic_flag with 
+let use_polymorphic_flag () =
+  match !local_polymorphic_flag with
   | Some p -> local_polymorphic_flag := None; p
   | None -> is_universe_polymorphism ()
 let make_polymorphic_flag b =

@@ -111,7 +111,7 @@ let show_intro all =
   higher-level of Inductiveops).
 
 *)
-    
+
 let make_cases_aux glob_ref =
   match glob_ref with
     | Globnames.IndRef ind ->
@@ -385,8 +385,10 @@ let err_notfound_library ?loc ?from qid =
   | Some from ->
     str " with prefix " ++ DirPath.print from ++ str "."
   in
+  let bonus =
+    if !Flags.load_vos_libraries then " (searching for a .vos file)" else "" in
   user_err ?loc ~hdr:"locate_library"
-     (strbrk "Unable to locate library " ++ pr_qualid qid ++ prefix)
+     (strbrk "Unable to locate library " ++ pr_qualid qid ++ prefix ++ bonus))
 
 let print_located_library r =
   let (loc,qid) = qualid_of_reference r in
@@ -531,7 +533,7 @@ let should_treat_as_cumulative cum poly =
   else
     match cum with
     | GlobalCumulativity | GlobalNonCumulativity -> false
-    | LocalCumulativity -> 
+    | LocalCumulativity ->
       user_err Pp.(str "The Cumulative prefix can only be used in a polymorphic context.")
     | LocalNonCumulativity ->
       user_err Pp.(str "The NonCumulative prefix can only be used in a polymorphic context.")
@@ -623,7 +625,7 @@ let vernac_scheme l =
 	       Option.iter (fun lid -> Dumpglob.dump_definition lid false "def") lid;
 	       match s with
 	       | InductionScheme (_, r, _)
-	       | CaseScheme (_, r, _) 
+	       | CaseScheme (_, r, _)
 	       | EqualityScheme r -> dump_global r) l;
   Indschemes.do_scheme l
 
@@ -884,7 +886,7 @@ let vernac_set_used_variables e =
   let tys = List.map EConstr.Unsafe.to_constr tys in
   let l = Proof_using.process_expr env e tys in
   let vars = Environ.named_context env in
-  List.iter (fun id -> 
+  List.iter (fun id ->
     if not (List.exists (NamedDecl.get_id %> Id.equal id) vars) then
       user_err ~hdr:"vernac_set_used_variables"
         (str "Unknown variable: " ++ Id.print id))
@@ -1062,7 +1064,7 @@ let vernac_arguments ~atts reference args more_implicits nargs_for_red flags =
     user_err Pp.(str "The \"/\" modifier should be put before any extra scope.");
 
   let scopes_specified = List.exists Option.has_some scopes in
-  
+
   if scopes_specified && clear_scopes_flag then
     user_err Pp.(str "The \"clear scopes\" flag is incompatible with scope annotations.");
 
@@ -1109,7 +1111,7 @@ let vernac_arguments ~atts reference args more_implicits nargs_for_red flags =
        if not (Name.equal prev name) then save_example_renaming (prev,name);
        name :: rename prev_names names
   in
-  
+
   let names = rename prev_names names in
   let renaming_specified = Option.has_some !example_renaming in
 
@@ -1156,16 +1158,16 @@ let vernac_arguments ~atts reference args more_implicits nargs_for_red flags =
        anonymous argument implicit *)
     | Anonymous :: _, (name, _) :: _ ->
        user_err ~hdr:"vernac_declare_arguments"
-                    (strbrk"Argument "++ Name.print name ++ 
+                    (strbrk"Argument "++ Name.print name ++
                        strbrk " cannot be declared implicit.")
 
     | Name id :: inf_names, (name, impl) :: implicits ->
        let max = impl = MaximallyImplicit in
        (ExplByName id,max,false) :: build_implicits inf_names implicits
-    
+
     | _ -> assert false (* already checked in [names_union] *)
   in
-  
+
   let implicits = List.map (build_implicits inf_names) implicits in
   let implicits_specified = match implicits with [[]] -> false | _ -> true in
 
@@ -1202,7 +1204,7 @@ let vernac_arguments ~atts reference args more_implicits nargs_for_red flags =
   end;
 
   if scopes_specified || clear_scopes_flag then begin
-      let scopes = List.map (Option.map (fun (loc,k) -> 
+      let scopes = List.map (Option.map (fun (loc,k) ->
         try ignore (Notation.find_scope k); k
         with UserError _ ->
           Notation.find_delimiters_scope ?loc k)) scopes
@@ -1445,7 +1447,7 @@ let _ =
       optkey   = ["Printing";"Universes"];
       optread  = (fun () -> !Constrextern.print_universes);
       optwrite = (fun b -> Constrextern.print_universes:=b) }
-     
+
 let _ =
   declare_bool_option
     { optdepr  = false;
@@ -1471,7 +1473,7 @@ let _ =
       optwrite = CWarnings.set_flags }
 
 let _ =
-  declare_string_option 
+  declare_string_option
     { optdepr  = false;
       optname  = "native_compute profiler output";
       optkey   = ["NativeCompute"; "Profile"; "Filename"];
@@ -1618,7 +1620,7 @@ let get_nth_goal n =
   let gls,_,_,_,sigma = Proof.proof pf in
   let gl = {Evd.it=List.nth gls (n-1) ; sigma = sigma; } in
   gl
-  
+
 exception NoHyp
 (* Printing "About" information of a hypothesis of the current goal.
    We only print the type and a small statement to this comes from the
@@ -1844,7 +1846,7 @@ let vernac_unfocused () =
     user_err Pp.(str "The proof is not fully unfocused.")
 
 
-(* BeginSubproof / EndSubproof. 
+(* BeginSubproof / EndSubproof.
     BeginSubproof (vernac_subproof) focuses on the first goal, or the goal
     given as argument.
     EndSubproof (vernac_end_subproof) unfocuses from a BeginSubproof, provided
@@ -2120,7 +2122,7 @@ let check_vernac_supports_locality c l =
     | VernacSetOpacity _ | VernacSetStrategy _
     | VernacSetOption _ | VernacSetAppendOption _ | VernacUnsetOption _
     | VernacDeclareReduction _
-    | VernacExtend _ 
+    | VernacExtend _
     | VernacInductive _) -> ()
   | Some _, _ -> user_err Pp.(str "This command does not support Locality")
 

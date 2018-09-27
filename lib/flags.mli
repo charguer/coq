@@ -24,6 +24,9 @@ val test_mode : bool ref
 val async_proofs_worker_id : string ref
 val async_proofs_is_worker : unit -> bool
 
+(** -vos and -vok options related flags *)
+val load_vos_libraries : bool ref
+
 (** Debug flags *)
 val debug : bool ref
 val in_debugger : bool ref
