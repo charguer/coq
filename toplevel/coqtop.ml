@@ -736,6 +736,7 @@ let parse_args arglist =
     |"-quiet"|"-silent" -> Flags.quiet := true; Flags.make_warn false
     |"-quick" -> compilation_mode := BuildVio
     |"-list-tags" -> print_tags := true
+    |"-skip-qed-checks" -> Flags.skip_qed_checks := true
     |"-time" -> Flags.time := true
     |"-type-in-type" -> set_type_in_type ()
     |"-unicode" -> add_require ("Utf8_core", None, Some false)

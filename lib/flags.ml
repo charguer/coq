@@ -48,6 +48,8 @@ let profile = false
 let ide_slave = ref false
 let ideslave_coqtop_flags = ref None
 
+let skip_qed_checks = ref false
+
 let time = ref false
 
 let raw_print = ref false
@@ -111,8 +113,8 @@ let make_universe_polymorphism b = universe_polymorphism := b
 let is_universe_polymorphism () = !universe_polymorphism
 
 let local_polymorphic_flag = ref None
-let use_polymorphic_flag () = 
-  match !local_polymorphic_flag with 
+let use_polymorphic_flag () =
+  match !local_polymorphic_flag with
   | Some p -> local_polymorphic_flag := None; p
   | None -> is_universe_polymorphism ()
 let make_polymorphic_flag b =

@@ -38,6 +38,9 @@ val ideslave_coqtop_flags : string option ref
 (* -time option: every command will be wrapped with `Time` *)
 val time : bool ref
 
+(* -skip-qed-checks performance flag for unsafe-yet-faster proofs *)
+val skip_qed_checks : bool ref
+
 (* development flag to detect race conditions, it should go away. *)
 val we_are_parsing : bool ref
 

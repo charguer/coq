@@ -78,6 +78,7 @@ let print_usage_channel co command =
 \n  -indices-matter        levels of indices (and nonuniform parameters) contribute to the level of inductives\
 \n  -type-in-type          disable universe consistency checking\
 \n  -time                  display the time taken by each command\
+\n  -skip-qed-checks       don't verify proof terms at end of proofs (faster but unsafe)\
 \n  -profile-ltac          display the time taken by each (sub)tactic\
 \n  -m, --memory           display total heap size at program exit\
 \n                         (use environment variable\

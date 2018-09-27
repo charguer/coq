@@ -85,13 +85,13 @@ let parse_args () =
         Envars.set_coqlib ~fail:(fun x -> x);
         Envars.print_config stdout Coq_config.all_src_dirs;
         exit 0
-      
+
     | ("-print-version" | "--print-version") :: _ ->
         Usage.machine_readable_version 0
 
 (* Options for coqtop : a) options with 0 argument *)
 
-    | ("-bt"|"-debug"|"-nolib"|"-boot"|"-time"|"-profile-ltac"
+    | ("-bt"|"-debug"|"-nolib"|"-boot"|"-skip-qed-checks"|"-time"|"-profile-ltac"
       |"-batch"|"-noinit"|"-nois"|"-noglob"|"-no-glob"
       |"-q"|"-profile"|"-echo" |"-quiet"
       |"-silent"|"-m"|"-beautify"|"-strict-implicit"

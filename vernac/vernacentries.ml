@@ -500,9 +500,13 @@ let vernac_start_proof ~atts kind l =
       | None -> ()) l;
          start_proof_and_print (local, atts.polymorphic, Proof kind) l no_hook
 
-let vernac_end_proof ?proof = function
-  | Admitted          -> save_proof ?proof Admitted
-  | Proved (_,_) as e -> save_proof ?proof e
+let vernac_end_proof ?proof e =
+  let e2 = (* Turn opaque proofs into Admitted for flag -skip-qed-checks. *)
+    match e with
+    | Proved (Opaque,_) when !Flags.skip_qed_checks -> Admitted
+    | _ -> e
+    in
+  save_proof ?proof e2
 
 let vernac_exact_proof c =
   (* spiwack: for simplicity I do not enforce that "Proof proof_term" is
