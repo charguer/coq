@@ -355,7 +355,7 @@ let compile ~verbosely ~f_in ~f_out =
       let wall_clock2 = Unix.gettimeofday () in
       check_pending_proofs ();
       if !compilation_mode <> BuildVok  (* Don't output proofs in -vok mode *)
-        then Library.save_library_to ldir long_f_dot_vo (Global.opaque_tables ());
+        then Library.save_library_to ~create_vos:false ldir long_f_dot_vo (Global.opaque_tables ());
       Aux_file.record_in_aux_at "vo_compile_time"
         (Printf.sprintf "%.3f" (wall_clock2 -. wall_clock1));
       Aux_file.stop_aux_file ();
@@ -395,8 +395,8 @@ let compile ~verbosely ~f_in ~f_out =
       let doc, _ = Vernac.load_vernac ~verbosely ~check:false ~interactive:false doc (Stm.get_current_state ~doc) long_f_dot_v in
       let doc = Stm.finish ~doc in
       check_pending_proofs ();
-      let dump_todo = (!compilation_mode = BuildVio) in
-      let _doc = Stm.snapshot_vio ~dump_todo ~doc ldir long_f_dot_ext in
+      let create_vos = (!compilation_mode = BuildVos) in
+      let _doc = Stm.snapshot_vio ~create_vos ~doc ldir long_f_dot_ext in
       Stm.reset_task_queue ()
 
   | Vio2Vo ->

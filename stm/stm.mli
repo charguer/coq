@@ -92,9 +92,9 @@ val join : doc:doc -> doc
    - if the worker proof is not empty, then it waits until all workers
      are done with their current jobs and then dumps (or fails if one
      of the completed tasks is a failure).
-   Note: the dump_todo argument is used in the "-vos" mode, where the
+   Note: the create_vos argument is used in the "-vos" mode, where the
    proof tasks are not dumped into the output file. *)
-val snapshot_vio : dump_todo:bool -> doc:doc -> DirPath.t -> string -> doc
+val snapshot_vio : create_vos:bool -> doc:doc -> DirPath.t -> string -> doc
 
 (* Empties the task queue, can be used only if the worker pool is empty (E.g.
  * after having built a .vio in batch mode *)

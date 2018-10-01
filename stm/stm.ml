@@ -2680,12 +2680,12 @@ let handle_failure (e, info) vcs =
       VCS.print ();
       Exninfo.iraise (e, info)
 
-let snapshot_vio ~dump_todo ~doc ldir long_f_dot_vo =
+let snapshot_vio ~create_vos ~doc ldir long_f_dot_vo =
   let doc = finish ~doc in
   if List.length (VCS.branches ()) > 1 then
     CErrors.user_err ~hdr:"stm" (str"Cannot dump a vio with open proofs");
-  let todo = if dump_todo then Some (dump_snapshot()) else None in
-  Library.save_library_to ?todo:todo ldir long_f_dot_vo (Global.opaque_tables ());
+  (* LATER: when create_vos is true, it could be more efficient to not allocate the futures; but for now it seems useful for synchronization of the workers. *)
+  Library.save_library_to ~create_vos ~todo:(dump_snapshot()) ldir long_f_dot_vo (Global.opaque_tables ());
   doc
 
 let reset_task_queue = Slaves.reset_task_queue

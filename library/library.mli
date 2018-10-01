@@ -42,8 +42,10 @@ val import_module : bool -> qualid located list -> unit
     returned path is the associated absolute logical path of the library. *)
 val start_library : CUnix.physical_path -> DirPath.t
 
-(** End the compilation of a library and save it to a ".vo" file *)
+(** End the compilation of a library and save it to a ".vo" file
+    (or a ".vio" file, or a ".vos" file) *)
 val save_library_to :
+  create_vos:bool ->
   ?todo:(((Future.UUID.t,'document) Stateid.request * bool) list * 'counters) ->
   DirPath.t -> string -> Opaqueproof.opaquetab -> unit
 

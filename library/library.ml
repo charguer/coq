@@ -294,7 +294,7 @@ let locate_absolute_library dir =
     (* If the .vos file exists and is not empty, it describes the library.
        If the .vos file exists and is empty, then load the .vo file.
        If the .vos file is missing, then fail. *)
-    match find ".vos", find ".vo" with
+    match find ".vos" with
     | None -> raise LibNotFound
     | Some vos ->
         if (Unix.stat vos).Unix.st_size > 0 then vos else
@@ -340,7 +340,7 @@ let locate_qualified_library ?root ?(warn = true) qid =
     if !Flags.load_vos_libraries then begin
 
       match find ".vos" with
-      | None -> raise LibNotFoundAsVos
+      | None -> raise LibNotFound
       | Some ((lpath_vos,vos) as res_vos) ->
           if (Unix.stat vos).Unix.st_size > 0 then res_vos else
           match find ".vo" with
@@ -375,9 +375,9 @@ let error_unmapped_dir qid =
 
 let error_lib_not_found qid =
   let bonus =
-    if !Flags.load_vos_libraries then " (searching for a .vos file)" else "" in
+    if !Flags.load_vos_libraries then " (While searching for a .vos file.)" else "" in
   user_err ~hdr:"load_absolute_library_from"
-    (str"Cannot find library " ++ pr_qualid qid ++ str" in loadpath" ++ bonus)
+    (str"Cannot find library " ++ pr_qualid qid ++ str " in loadpath" ++ str bonus)
 
 let try_locate_absolute_library dir =
   try
@@ -723,16 +723,20 @@ let error_recursively_dependent_library dir =
 (* Security weakness: file might have been changed on disk between
    writing the content and computing the checksum... *)
 
-let save_library_to ?todo dir f otab =
+(** Note: create_vos could be replaced by a direct read of
+    !Flags.compilation_mode, but this does not seem to be
+    the way things are done for .vio files. *)
+
+let save_library_to ~create_vos ?todo dir f otab =
   let except = match todo with
     | None ->
         (* XXX *)
         (* assert(!Flags.compilation_mode = Flags.BuildVo); *)
-        assert(Filename.check_suffix f ".vo"
-            || Filename.check_suffix f ".vos");
+        assert(Filename.check_suffix f ".vo");
         Future.UUIDSet.empty
     | Some (l,_) ->
-        assert(Filename.check_suffix f ".vio");
+        assert(Filename.check_suffix f ".vio"
+            || Filename.check_suffix f ".vos");
         List.fold_left (fun e (r,_) -> Future.UUIDSet.add r.Stateid.uuid e)
           Future.UUIDSet.empty l in
   let cenv, seg, ast = Declaremods.end_library ~except dir in
@@ -746,7 +750,7 @@ let save_library_to ?todo dir f otab =
             try { r with uuid = Future.UUIDMap.find r.uuid f2t_map }, b
             with Not_found -> assert b; { r with uuid = -1 }, b)
           tasks in
-        Some (tasks,rcbackup),
+        (if create_vos then None else Some (tasks,rcbackup)),
         Some (univ_table,Univ.ContextSet.empty,false),
         Some disch_table in
   let except =

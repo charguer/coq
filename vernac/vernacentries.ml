@@ -386,9 +386,9 @@ let err_notfound_library ?loc ?from qid =
     str " with prefix " ++ DirPath.print from ++ str "."
   in
   let bonus =
-    if !Flags.load_vos_libraries then " (searching for a .vos file)" else "" in
+    if !Flags.load_vos_libraries then " (While searching for a .vos file.)" else "" in
   user_err ?loc ~hdr:"locate_library"
-     (strbrk "Unable to locate library " ++ pr_qualid qid ++ prefix ++ bonus))
+     (strbrk "Unable to locate library " ++ pr_qualid qid ++ prefix ++ str bonus)
 
 let print_located_library r =
   let (loc,qid) = qualid_of_reference r in
