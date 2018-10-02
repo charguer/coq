@@ -357,48 +357,75 @@ end
 
 module VCache = Set.Make(VData)
 
-let rec traite_fichier_Coq suffixe verbose f =
+type dependency =
+  | DepRequire of string (* one basename, to which we later append .vo or .vio or .vos *)
+  | DepOther of string   (* filenames of dependencies, separated by spaces *)
+
+let string_of_dependency_list suffix_for_require deps =
+  let string_of_dep = function
+    | DepRequire basename -> basename ^ suffix_for_require
+    | DepOther s -> s
+    in
+  String.concat " " (List.map string_of_dep deps)
+
+let rec find_dependencies basename =
+  let verbose = true in (* for past/future use? *)
   try
+    (* Visited marks *)
+    let visited_ml = ref StrSet.empty in
+    let visited_v = ref VCache.empty in
+    let should_visit_v_and_mark from str =
+       if not (VCache.mem (from, str) !visited_v) then begin
+          visited_v := VCache.add (from, str) !visited_v;
+          true
+       end else false
+       in
+    (* Output: dependencies found *)
+    let dependencies = ref [] in
+    let add_dep dep =
+       dependencies := dep::!dependencies in
+    let add_dep_other s =
+       add_dep (DepOther s) in
+
+    (* Reading file contents *)
+    let f = basename ^ ".v" in
     let chan = open_in f in
     let buf = Lexing.from_channel chan in
-    let deja_vu_v = ref VCache.empty in
-    let deja_vu_ml = ref StrSet.empty in
     try
       while true do
         let tok = coq_action buf in
         match tok with
-          | Require (from, strl) ->
-              List.iter (fun str ->
-                if not (VCache.mem (from, str) !deja_vu_v) then begin
-                  deja_vu_v := VCache.add (from, str) !deja_vu_v;
-                  try
-                    let file_str = safe_assoc from verbose f str in
-                    printf " %s%s" (canonize file_str) suffixe
-                  with Not_found ->
-                      if verbose && not (is_in_coqlib ?from str) then
-                        let str =
-                          match from with
-                          | None -> str
-                          | Some pth -> pth @ str
-                          in
-                      warning_module_notfound f str
-          end) strl
+        | Require (from, strl) ->
+            List.iter (fun str ->
+              if should_visit_v_and_mark from str then begin
+              try
+                let file_str = safe_assoc from verbose f str in
+                add_dep (DepRequire (canonize file_str))
+              with Not_found ->
+                  if verbose && not (is_in_coqlib ?from str) then
+                    let str =
+                      match from with
+                      | None -> str
+                      | Some pth -> pth @ str
+                      in
+                  warning_module_notfound f str
+              end) strl
         | Declare sl ->
             let declare suff dir s =
-            let base = escape (file_name s dir) in
-                match !option_dynlink with
-                | No -> ()
-                | Byte -> printf " %s%s" base suff
-                | Opt -> printf " %s.cmxs" base
-                | Both -> printf " %s%s %s.cmxs" base suff base
-                | Variable ->
-                   printf " %s%s" base
-                    (if suff=".cmo" then "$(DYNOBJ)" else "$(DYNLIB)")
+              let base = escape (file_name s dir) in
+              match !option_dynlink with
+              | No -> ()
+              | Byte -> add_dep_other (sprintf "%s%s" base suff)
+              | Opt -> add_dep_other (sprintf "%s.cmxs" base)
+              | Both -> add_dep_other (sprintf "%s%s" base suff);
+                        add_dep_other (sprintf "%s.cmxs" base)
+              | Variable -> add_dep_other (sprintf "%s%s" base
+                  (if suff=".cmo" then "$(DYNOBJ)" else "$(DYNLIB)"))
               in
             let decl str =
               let s = basename_noext str in
-              if not (StrSet.mem s !deja_vu_ml) then begin
-                deja_vu_ml := StrSet.add s !deja_vu_ml;
+              if not (StrSet.mem s !visited_ml) then begin
+                visited_ml := StrSet.add s !visited_ml;
                 match search_mllib_known s with
                   | Some mldir -> declare ".cma" mldir s
                   | None ->
@@ -409,23 +436,30 @@ let rec traite_fichier_Coq suffixe verbose f =
                       | Some mldir -> declare ".cmo" mldir s
                       | None -> warning_declare f str
                 end
-                in List.iter decl sl
+                in
+              List.iter decl sl
         | Load str ->
             let str = Filename.basename str in
-            if not (VCache.mem (None, [str]) !deja_vu_v) then begin
-              deja_vu_v := VCache.add (None, [str]) !deja_vu_v;
-                    try
-              let (file_str, _) = Hashtbl.find vKnown [str] in
-              let canon = canonize file_str in
-              printf " %s.v" canon;
-              traite_fichier_Coq suffixe true (canon ^ ".v")
-            with Not_found -> ()
-          end
-        | AddLoadPath _ | AddRecLoadPath _ -> (* TODO *) ()
-      done
-    with Fin_fichier -> close_in chan
-       | Syntax_error (i,j) -> close_in chan; error_cannot_parse f (i,j)
-  with Sys_error _ -> ()
+            if should_visit_v_and_mark None [str] then begin
+              try
+                let (file_str, _) = Hashtbl.find vKnown [str] in
+                let canon = canonize file_str in
+                add_dep_other (sprintf "%s.v" canon);
+                let deps = find_dependencies canon in
+                List.iter add_dep deps
+              with Not_found -> ()
+            end
+        | AddLoadPath _ | AddRecLoadPath _ -> (* TODO: will this be handled? *) ()
+      done;
+      List.rev !dependencies
+    with
+    | Fin_fichier ->
+        close_in chan;
+        List.rev !dependencies
+    | Syntax_error (i,j) ->
+        close_in chan;
+        error_cannot_parse f (i,j)
+  with Sys_error _ -> [] (* TODO: report an error? *)
 
 
 let mL_dependencies () =
@@ -479,15 +513,13 @@ let coq_dependencies () =
     (fun (name,_) ->
        let ename = escape name in
        let glob = if !option_noglob then "" else " "^ename^".glob" in
-       printf "%s%s%s %s.v.beautified %s.required_vo: %s.v" ename !suffixe glob ename ename ename;
-       traite_fichier_Coq !suffixe true (name ^ ".v");
-       printf "\n";
-       printf "%s.vio: %s.v" ename ename;
-       traite_fichier_Coq ".vio" true (name ^ ".v");
-       printf "\n";
-       printf "%s.vos %s.vok %s.required_vos: %s.v" ename ename ename;
-       traite_fichier_Coq ".vos" true (name ^ ".v");
-       printf "\n";
+       let deps = find_dependencies name in
+       printf "%s%s%s %s.v.beautified %s.required_vo: %s.v %s\n" ename !suffixe glob ename ename ename
+        (string_of_dependency_list !suffixe deps);
+       printf "%s.vio: %s.v %s\n" ename ename
+        (string_of_dependency_list ".vio" deps);
+       printf "%s.vos %s.vok %s.required_vos: %s.v %s\n" ename ename ename ename
+        (string_of_dependency_list ".vos" deps);
        flush stdout)
     (List.rev !vAccu)
 
