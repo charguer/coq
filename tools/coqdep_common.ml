@@ -479,11 +479,15 @@ let coq_dependencies () =
     (fun (name,_) ->
        let ename = escape name in
        let glob = if !option_noglob then "" else " "^ename^".glob" in
-       printf "%s%s%s %s.v.beautified: %s.v" ename !suffixe glob ename ename;
+       printf "%s%s%s %s.v.beautified %s.required_vo: %s.v" ename !suffixe glob ename ename ename;
+       let find_dependencies =
        traite_fichier_Coq !suffixe true (name ^ ".v");
        printf "\n";
        printf "%s.vio: %s.v" ename ename;
        traite_fichier_Coq ".vio" true (name ^ ".v");
+       printf "\n";
+       printf "%s.vos %s.vok %s.required_vos: %s.v" ename ename ename;
+       traite_fichier_Coq ".vos" true (name ^ ".v");
        printf "\n";
        flush stdout)
     (List.rev !vAccu)

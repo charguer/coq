@@ -358,9 +358,10 @@ let compile ~verbosely ~f_in ~f_out =
       Aux_file.record_in_aux_at "vo_compile_time"
         (Printf.sprintf "%.3f" (wall_clock2 -. wall_clock1));
       Aux_file.stop_aux_file ();
-      (* Output an additional .vos empty file *)
-      create_empty_file (long_f_dot_v ^ "os");
-      (* Create an empty .vok empty file in -vok mode *)
+      (* Produce an empty .vos file when producing a .vo in standard mode *)
+      if !compilation_mode = BuildVo
+        then create_empty_file (long_f_dot_v ^ "os");
+      (* Produce an empty .vok file when in -vok mode *)
       if !compilation_mode = BuildVok
         then create_empty_file (long_f_dot_v ^ "ok");
 
