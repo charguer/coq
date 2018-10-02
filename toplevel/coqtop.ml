@@ -229,20 +229,20 @@ let glob_opt = ref false
 let compile_list = ref ([] : (bool * string) list)
 
 (** Compilation modes:
-  - BuildVo      : process statements and proofs (standard compilation)
+  - BuildVo      : process statements and proofs (standard compilation),
+                   and also output an empty .vos file
   - BuildVio     : process statements, delay proofs in futures
   - Vio2Vo       : load delayed proofs and process them
   - BuildVos     : process statements, and discard proofs,
                    and load .vos files for required libraries
   - BuildVok     : like BuildVo, but load .vos files for required libraries
-  - BuildAlsoVos : like BuildVo, but dump an empty .vos file upon completion.
 
   When loading the .vos version of a required library, if the file exists but is
   empty, then we attempt to load the .vo version of that library.
   This trick is useful to avoid the need for the user to compile .vos version
   when an up to date .vo version is already available.
 *)
-type compilation_mode = BuildVo | BuildVio | Vio2Vo | BuildVos | BuildVok | BuildAlsoVos
+type compilation_mode = BuildVo | BuildVio | Vio2Vo | BuildVos | BuildVok
 
 let extension_for_compilation_mode = function
   | BuildVo -> "vo"
@@ -250,7 +250,6 @@ let extension_for_compilation_mode = function
   | Vio2Vo -> "vo"
   | BuildVos -> "vos"
   | BuildVok -> "vok"
-  | BuildAlsoVos -> "vo"
 
 let compilation_mode = ref BuildVo
 let compilation_output_name = ref None
@@ -328,7 +327,7 @@ let compile ~verbosely ~f_in ~f_out =
   in
   let extension = extension_for_compilation_mode !compilation_mode in
   match !compilation_mode with
-  | BuildVo | BuildAlsoVos | BuildVok ->
+  | BuildVo | BuildVok ->
       Flags.record_aux_file := true;
       let long_f_dot_v = ensure_v f_in in
       ensure_exists long_f_dot_v;
@@ -359,9 +358,8 @@ let compile ~verbosely ~f_in ~f_out =
       Aux_file.record_in_aux_at "vo_compile_time"
         (Printf.sprintf "%.3f" (wall_clock2 -. wall_clock1));
       Aux_file.stop_aux_file ();
-      (* Output an additional .vos empty file in -vos mode*)
-      if !compilation_mode = BuildAlsoVos
-        then create_empty_file (long_f_dot_v ^ "os");
+      (* Output an additional .vos empty file *)
+      create_empty_file (long_f_dot_v ^ "os");
       (* Create an empty .vok empty file in -vok mode *)
       if !compilation_mode = BuildVok
         then create_empty_file (long_f_dot_v ^ "ok");
@@ -778,7 +776,6 @@ let parse_args arglist =
     |"-time" -> Flags.time := true
     |"-vos" -> compilation_mode := BuildVos; Flags.load_vos_libraries := true
     |"-vok" -> compilation_mode := BuildVok; Flags.load_vos_libraries := true
-    |"-also-vos" -> compilation_mode := BuildAlsoVos
     |"-type-in-type" -> set_type_in_type ()
     |"-unicode" -> add_require ("Utf8_core", None, Some false)
     |"-v"|"--version" -> Usage.version (exitcode ())
